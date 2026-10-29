@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BD Danger Alert — Fixed</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:18px;background:#08111f;color:white;font:16px Arial,sans-serif;min-height:100vh;display:grid;place-items:center}
+.card{width:100%;max-width:520px;background:#142238;padding:22px;border-radius:18px;text-align:center;box-shadow:0 15px 50px #0005}
+input,button,a{display:block;width:100%;padding:14px;margin:9px 0;border-radius:10px;font:inherit;text-decoration:none}
+input{background:#08111f;color:white;border:1px solid #52627b}
+button{background:#16c784;color:#062416;border:0;font-weight:bold;cursor:pointer}
+#sound{background:#367dff;color:white}#map{background:#e6f3ff;color:#0a3a72}
+#screen{padding:20px 12px;border-radius:14px;background:#075b3b;margin-top:15px;overflow-wrap:anywhere}
+#screen.danger{background:#b00016;animation:blink .65s infinite}
+#heading{font-size:clamp(28px,8vw,42px)}#message{line-height:1.6;overflow-wrap:anywhere}
+#status,#location{overflow-wrap:anywhere;line-height:1.5}
+.small{font-size:13px;color:#a9bad0}
+@keyframes blink{50%{background:#ff1028}}
+</style></head>
+<body><main class="card">
+<h2>BD EMERGENCY ALERT SYSTEM</h2>
+<input id="room" maxlength="80" value="BD-HELP-12345" autocomplete="off" placeholder="Enter same Room ID">
+<button id="connect">CONNECT TO MONITOR</button>
+<button id="sound">ENABLE ALARM SOUND</button>
+<div id="screen">
+<h1 id="heading">STANDBY</h1>
+<p id="message">Connect to Firebase and wait for monitor data.</p>
+<p id="status">Not connected.</p>
+<p id="location">GPS: Not received yet.</p>
+<a id="map" href="#" target="_blank" rel="noopener" hidden>OPEN LOCATION IN GOOGLE MAPS</a>
+</div>
+<p class="small">Keep this page open to hear live alarms. Browser sound needs one tap on “Enable Alarm Sound”. This simple version cannot send push notifications when closed.</p>
+</main>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+const firebaseConfig = {
+  apiKey: "AIzaSyBrVJ_vcLjxZMSZOjqUQocWjVf36GQ1bEw",
+  authDomain: "king-59c08.firebaseapp.com",
+  databaseURL: "https://king-59c08-default-rtdb.firebaseio.com",
+  projectId: "king-59c08",
+  storageBucket: "king-59c08.firebasestorage.app",
+  messagingSenderId: "982382372976",
+  appId: "1:982382372976:web:07758531a29fdd966e6cb5"
+};
+const $ = id => document.getElementById(id);
+let db, room="", connected=false, heartbeatAt=0, active=false, emergency=false, message="", locationData=null, soundEnabled=false, audioCtx=null, alarmTimer=null, wasDanger=false, watchdog=null, unsubscribers=[];
+function status(s){ $("status").textContent=s; }
+function showError(e) {
+  console.error(e);
+  const code = e?.code ? " ("+e.code+")" : "";
+  status("Firebase error"+code+": "+(e?.message || String(e))+". Check Realtime Database URL and Rules.");
+}
+try {
+  const app=initializeApp(firebaseConfig);
+  db=getDatabase(app);
+  onValue(ref(db,".info/connected"), snap => {
+    const online=snap.val()===true;
+    if (!online) status("Firebase connecting/offline… Check internet and database.");
+    else if (!connected) status("Firebase connected. Press CONNECT TO MONITOR.");
+  }, showError);
+} catch(e) { showError(e); }
+function startAlarm(){
+  if(!soundEnabled || alarmTimer) return;
+  try {
+    audioCtx = audioCtx || new AudioContext();
+    const beep=()=>{
+      if(!audioCtx || audioCtx.state==="closed") return;
+      const osc=audioCtx.createOscillator(), gain=audioCtx.createGain();
+      osc.type="square"; osc.frequency.value=950; gain.gain.value=.16;
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime+.3);
+    };
+    beep(); alarmTimer=setInterval(beep,700);
+  } catch(e) { console.error(e); }
+}
+function stopAlarm(){ if(alarmTimer) clearInterval(alarmTimer); alarmTimer=null; }
+function render(){
+  if(!connected) return;
+  const stale=!heartbeatAt || Date.now()-heartbeatAt>10000;
+  const danger=emergency || !active || stale;
+  $("screen").classList.toggle("danger",danger);
+  $("heading").textContent=emergency ? "🚨 SOS EMERGENCY 🚨" : danger ? "⚠ MONITOR OFFLINE ⚠" : "MONITOR ONLINE";
+  $("message").textContent=emergency ? (message || "SOS! NEED IMMEDIATE HELP.") : danger ? "Monitor heartbeat missing or monitor stopped. Check on this person." : "Monitor is active. No SOS reported.";
+  if (emergency) status("SOS RECEIVED • "+new Date(heartbeatAt||Date.now()).toLocaleTimeString());
+  else if (stale) status("MONITOR OFFLINE • No heartbeat received for 10 seconds.");
+  else status("MONITOR ONLINE • Last heartbeat "+new Date(heartbeatAt).toLocaleTimeString());
+  if(locationData && Number.isFinite(Number(locationData.latitude)) && Number.isFinite(Number(locationData.longitude))){
+    const lat=Number(locationData.latitude), lon=Number(locationData.longitude);
+    $("location").textContent="Coordinates: "+lat.toFixed(6)+", "+lon.toFixed(6)+(locationData.accuracy ? " • Accuracy ±"+Math.round(locationData.accuracy)+" m" : "");
+    $("map").href="https://maps.google.com/?q="+lat+","+lon; $("map").hidden=false;
+  } else { $("location").textContent="GPS: Not received yet. SOS still works without GPS."; $("map").hidden=true; }
+  if(danger && !wasDanger && soundEnabled) startAlarm();
+  if(!danger) stopAlarm();
+  wasDanger=danger;
+}
+$("sound").addEventListener("click", async()=>{
+  try{
+    audioCtx=audioCtx||new AudioContext(); await audioCtx.resume(); soundEnabled=true;
+    $("sound").textContent="ALARM SOUND ENABLED";
+    if(connected && (emergency || !active || !heartbeatAt || Date.now()-heartbeatAt>10000)) startAlarm();
+  }catch(e){ status("Sound blocked by browser. Click again or check browser sound permission."); }
+});
+$("connect").addEventListener("click",()=>{
+  room=$("room").value.trim();
+  if(!/^[A-Za-z0-9_-]{5,80}$/.test(room)) return status("Room ID must be 5–80 letters, numbers, _ or -.");
+  if(!db) return status("Firebase did not initialize. Reload and check internet/config.");
+  unsubscribers.forEach(fn=>fn()); unsubscribers=[];
+  if(watchdog) clearInterval(watchdog);
+  heartbeatAt=0;active=false;emergency=false;message="";locationData=null;wasDanger=false;
+  connected=true;
+  const root="bdDangerRooms/"+room;
+  const listen=(field, callback)=>unsubscribers.push(onValue(ref(db,root+"/"+field), snap=>{callback(snap.val());render();},showError));
+  listen("heartbeat",v=>heartbeatAt=Number(v)||0);
+  listen("active",v=>active=v===true);
+  listen("emergency",v=>emergency=v===true);
+  listen("message",v=>message=typeof v==="string"?v:"");
+  listen("location",v=>locationData=v && typeof v==="object"?v:null);
+  watchdog=setInterval(render,1000);
+  status("Connecting to room "+room+"…");
+});
+</script></body></html>

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BD Danger Monitor — Fixed</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:18px;background:#08111f;color:#f8fafc;font:16px Arial,sans-serif;min-height:100vh;display:grid;place-items:center}
+.card{width:100%;max-width:520px;background:#142238;padding:22px;border-radius:18px;box-shadow:0 15px 50px #0005}
+h1{margin-top:0;color:#ff6477}p{line-height:1.5;color:#d6dfed}label{display:block;margin-top:12px}
+input,textarea,button{width:100%;padding:14px;margin:7px 0;border-radius:10px;font:inherit}
+input,textarea{background:#08111f;color:white;border:1px solid #52627b}textarea{min-height:95px;resize:vertical}
+button{border:0;font-weight:bold;cursor:pointer}button:disabled{opacity:.6;cursor:wait}
+#start{background:#16c784;color:#062416}#sos{background:#ff1838;color:white;font-size:18px}#stop{background:#46556b;color:white}
+.status{padding:13px;background:#08111f;border-radius:10px;overflow-wrap:anywhere;line-height:1.5;margin-top:10px}
+.small{font-size:13px;color:#a9bad0}
+</style>
+</head>
+<body><main class="card">
+<h1>BD DANGER MONITOR</h1>
+<p>Keep this page open while monitoring. SOS works even if GPS permission is denied.</p>
+<label for="room">Room ID — use the exact same ID on Alert.html</label>
+<input id="room" maxlength="80" value="BD-HELP-12345" autocomplete="off" placeholder="Example: BD-HELP-12345">
+<label for="message">Emergency message</label>
+<textarea id="message">SOS! I AM IN TROUBLE AND NEED IMMEDIATE HELP. PLEASE CHECK MY LOCATION AND CONTACT ME NOW.</textarea>
+<button id="start">START MONITOR</button>
+<button id="sos">🚨 SEND SOS NOW</button>
+<button id="stop">STOP MONITOR</button>
+<div id="status" class="status" role="status">Status: Not connected yet.</div>
+<div id="coords" class="status">GPS: Not received yet.</div>
+<p class="small">This page must remain open for live monitoring. This simple version does not send push alerts after the page is closed.</p>
+</main>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, set, update, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+const firebaseConfig = {
+  apiKey: "AIzaSyBrVJ_vcLjxZMSZOjqUQocWjVf36GQ1bEw",
+  authDomain: "king-59c08.firebaseapp.com",
+  databaseURL: "https://king-59c08-default-rtdb.firebaseio.com",
+  projectId: "king-59c08",
+  storageBucket: "king-59c08.firebasestorage.app",
+  messagingSenderId: "982382372976",
+  appId: "1:982382372976:web:07758531a29fdd966e6cb5"
+};
+const $ = id => document.getElementById(id);
+let app, db, room = "", started = false, heartbeatTimer = null, watchId = null, lastLocation = null, connected = false;
+const validRoom = s => /^[A-Za-z0-9_-]{5,80}$/.test(s);
+const path = () => "bdDangerRooms/" + room;
+function status(s){ $("status").textContent = s; }
+function showError(e){
+  console.error(e);
+  const code = e?.code ? " (" + e.code + ")" : "";
+  status("Firebase/browser error" + code + ": " + (e?.message || String(e)) +
+    ". Check Firebase Realtime Database URL and Rules.");
+}
+try {
+  app = initializeApp(firebaseConfig);
+  db = getDatabase(app);
+  onValue(ref(db, ".info/connected"), snap => {
+    connected = snap.val() === true;
+    if (!connected) status("Firebase connecting/offline… Check internet and Realtime Database.");
+    else if (!started) status("Firebase connected. Enter/use the same Room ID, then press START MONITOR.");
+  }, showError);
+} catch(e) { showError(e); }
+
+async function publishLocation(pos) {
+  lastLocation = {
+    latitude: pos.coords.latitude,
+    longitude: pos.coords.longitude,
+    accuracy: pos.coords.accuracy,
+    timestamp: Date.now()
+  };
+  $("coords").textContent = `GPS: ${lastLocation.latitude.toFixed(6)}, ${lastLocation.longitude.toFixed(6)} • Accuracy ±${Math.round(lastLocation.accuracy)} m`;
+  if (room && db) {
+    try { await set(ref(db, path()+"/location"), lastLocation); }
+    catch(e) { showError(e); }
+  }
+}
+function gpsError(e) {
+  $("coords").textContent = "GPS unavailable: " + (e?.message || "permission denied") + ". SOS still works without GPS.";
+}
+async function heartbeat() {
+  if (!started || !room || !db) return;
+  try {
+    await update(ref(db, path()), { heartbeat: Date.now(), active: true });
+    status("MONITOR ONLINE • Last heartbeat " + new Date().toLocaleTimeString());
+  } catch(e) { showError(e); }
+}
+$("start").addEventListener("click", async () => {
+  room = $("room").value.trim();
+  if (!validRoom(room)) return status("Room ID must be 5–80 letters, numbers, _ or -.");
+  if (!db) return status("Firebase did not initialize. Reload page and check internet/config.");
+  $("start").disabled = true;
+  try {
+    await update(ref(db, path()), {
+      active: true, emergency: false, message: $("message").value.trim(),
+      heartbeat: Date.now(), updatedAt: Date.now()
+    });
+    started = true;
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = setInterval(heartbeat, 3000);
+    await heartbeat();
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(publishLocation, gpsError,
+        {enableHighAccuracy:true, timeout:15000, maximumAge:0});
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      watchId = navigator.geolocation.watchPosition(publishLocation, gpsError,
+        {enableHighAccuracy:true, timeout:20000, maximumAge:3000});
+    } else gpsError({message:"This browser does not support location"});
+  } catch(e) { started = false; showError(e); }
+  finally { $("start").disabled = false; }
+});
+$("sos").addEventListener("click", async () => {
+  room = $("room").value.trim();
+  if (!validRoom(room)) return status("Enter a valid Room ID first.");
+  if (!db) return status("Firebase is not initialized. Check the connection/config.");
+  $("sos").disabled = true;
+  try {
+    const msg = $("message").value.trim() || "SOS! I NEED IMMEDIATE HELP.";
+    await update(ref(db, path()), {
+      active: true, emergency: true, message: msg,
+      sosAt: Date.now(), heartbeat: Date.now(), updatedAt: Date.now()
+    });
+    status("SOS SENT TO ROOM " + room + " • Alert.html should receive it now.");
+    if (!lastLocation && "geolocation" in navigator)
+      navigator.geolocation.getCurrentPosition(publishLocation, gpsError,
+        {enableHighAccuracy:true, timeout:15000, maximumAge:0});
+  } catch(e) { showError(e); }
+  finally { $("sos").disabled = false; }
+});
+$("stop").addEventListener("click", async () => {
+  started = false;
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  heartbeatTimer = null;
+  if (watchId !== null && "geolocation" in navigator) navigator.geolocation.clearWatch(watchId);
+  watchId = null;
+  if (!room || !db) return status("Monitor stopped locally.");
+  try {
+    await update(ref(db, path()), {active:false, heartbeat:Date.now(), updatedAt:Date.now()});
+    status("MONITOR STOPPED • Alert page should show MONITOR OFFLINE.");
+  } catch(e) { showError(e); }
+});
+</script></body></html>
