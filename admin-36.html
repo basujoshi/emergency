@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BD Resume Maker — Admin</title>
+<style>
+:root{--blue:#1769e0;--navy:#102a56;--bg:#f3f7ff;--ink:#17243a;--muted:#64748b;--line:#dce5f2}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Arial,sans-serif}
+header{background:linear-gradient(120deg,#0e3b83,#2479ef);color:white;padding:22px max(18px,calc((100% - 1100px)/2));display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+h1{font-size:22px;margin:0}header p{margin:3px 0 0;color:#dbeafe;font-size:13px}main{max-width:1100px;margin:22px auto;padding:0 16px}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:18px;box-shadow:0 8px 28px #163b6b0b}
+h2{font-size:19px;margin:0 0 14px;color:var(--navy)}input,select{width:100%;padding:11px 12px;border:1px solid #cbd7e8;border-radius:9px;font:inherit}
+button{border:0;border-radius:9px;padding:11px 16px;background:var(--blue);color:white;font-weight:700;cursor:pointer}button.secondary{background:#eaf1fc;color:#17498d}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.stat{padding:15px;background:#f4f8ff;border:1px solid var(--line);border-radius:12px}.stat b{font-size:25px;display:block;color:#164b98}.muted{font-size:13px;color:var(--muted)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.doc{border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.pill{font-size:11px;background:#eaf1fc;color:#17498d;padding:3px 8px;border-radius:20px}.actions{display:flex;gap:8px;flex-wrap:wrap}.status{padding:10px 12px;border-radius:9px;background:#eff6ff;color:#17498d;margin:10px 0}.error{background:#fff1f0;color:#b42318}.hidden{display:none!important}
+.preview{background:white;color:#111;padding:28px;max-width:800px;margin:15px auto;border:1px solid #ddd}.preview h1{color:#123e78}.preview h2{border-bottom:1px solid #bbb;padding-bottom:4px;margin-top:18px}.preview p{white-space:pre-wrap;margin:5px 0}
+@media(max-width:700px){.grid{grid-template-columns:repeat(2,1fr)}.card{padding:15px}}@media(max-width:420px){.grid{grid-template-columns:1fr}}
+@media print{header,.no-print,.card:not(.print-card){display:none!important}body{background:white}.print-card{border:0;box-shadow:none;margin:0;padding:0}.preview{border:0;margin:0;max-width:none;padding:0}}
+</style></head>
+<body>
+<header><div><h1>BD Resume & Biodata — Admin</h1><p>Read-only document monitoring dashboard</p></div><div><button id="loginBtn">Admin Google Login</button><button id="logoutBtn" class="secondary hidden">Sign out</button></div></header>
+<main>
+<div id="notice" class="status">Admin sign-in required.</div>
+<section id="dashboard" class="hidden">
+<div class="card"><div class="grid"><div class="stat"><b id="totalDocs">0</b><span class="muted">Total documents</span></div><div class="stat"><b id="totalResumes">0</b><span class="muted">Resumes</span></div><div class="stat"><b id="totalBio">0</b><span class="muted">Biodata</span></div><div class="stat"><b id="totalOwners">0</b><span class="muted">Users</span></div></div></div>
+<div class="card"><h2>Search all saved documents</h2><div class="grid"><input id="searchName" placeholder="Search complete name"><input id="searchEmail" placeholder="Search user email"><input id="searchMobile" placeholder="Search mobile number"><select id="typeFilter"><option value="">All document types</option><option>Resume</option><option>Biodata</option><option>Marriage Biodata</option></select></div><div id="results"></div></div>
+<div class="card print-card hidden" id="viewCard"><div class="row no-print"><h2>Document View</h2><div class="actions"><button id="printBtn">Print / Save PDF</button><button class="secondary" id="closeView">Close</button></div></div><div id="preview" class="preview"></div></div>
+</section>
+</main>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+const ADMIN_EMAIL="joshibasu12345@gmail.com";
+const firebaseConfig={
+ apiKey:"AIzaSyC_nzg0OSMo4L38NS9X9KWpMwh8rNtNu6v4",
+ authDomain:"online-shoping-90c2a.firebaseapp.com",
+ databaseURL:"https://online-shoping-90c2a-default-rtdb.firebaseio.com",
+ projectId:"online-shoping-90c2a",
+ storageBucket:"online-shoping-90c2a.firebasestorage.app",
+ messagingSenderId:"719473683207",
+ appId:"1:719473683207:web:f816a2e564fdc8cb0073a2"
+};
+firebase.initializeApp(firebaseConfig);const auth=firebase.auth(),db=firebase.database();const $=id=>document.getElementById(id);
+let allDocs=[];
+function note(s,bad=false){$("notice").textContent=s;$("notice").className="status"+(bad?" error":"")}
+function esc(s){return String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function previewHtml(d){const section=(t,v)=>v?`<h2>${t}</h2><p>${esc(v)}</p>`:"";return `<h1>${esc(d.fullName)}</h1><p><b>${esc(d.docType)}</b></p><p>${[d.email,d.mobile,d.dob,d.gender,d.address].filter(Boolean).map(esc).join(" • ")}</p>${section("Career Objective / About Me",d.objective)}${section("Education",d.education)}${section("Work Experience",d.experience)}${section("Skills",d.skills)}${section("Languages",d.languages)}${section("Family Details",d.family)}${section("Hobbies / Additional Information",d.hobbies)}`}
+function render(){const name=$("searchName").value.trim().toLowerCase(),email=$("searchEmail").value.trim().toLowerCase(),mobile=$("searchMobile").value.trim().toLowerCase(),type=$("typeFilter").value;const rows=allDocs.filter(x=>(!name||(x.data.fullName||"").toLowerCase().includes(name))&&(!email||(x.data.ownerEmail||x.data.email||"").toLowerCase().includes(email))&&(!mobile||(x.data.mobile||"").toLowerCase().includes(mobile))&&(!type||x.data.docType===type));$("results").innerHTML="";if(!rows.length){$("results").innerHTML='<p class="muted">No matching documents found.</p>';return;}rows.sort((a,b)=>(b.data.updatedAt||0)-(a.data.updatedAt||0));rows.forEach(x=>{const d=x.data,el=document.createElement("div");el.className="doc";el.innerHTML=`<div><b>${esc(d.fullName||"Unnamed")}</b> <span class="pill">${esc(d.docType||"Document")}</span><div class="muted">${esc(d.ownerEmail||"")} · ${esc(d.mobile||"")} · ${d.updatedAt?new Date(d.updatedAt).toLocaleString():""}</div></div><div class="actions"><button data-view="${esc(x.uid+"/"+x.id)}">View / Print</button></div>`;$("results").appendChild(el);});}
+async function loadAll(){note("Loading saved documents...");const snap=await db.ref("adminDocuments").once("value");const obj=snap.val()||{};allDocs=[];Object.entries(obj).forEach(([uid,docs])=>Object.entries(docs||{}).forEach(([id,data])=>allDocs.push({uid,id,data})));const owners=new Set(allDocs.map(x=>x.uid));$("totalDocs").textContent=allDocs.length;$("totalResumes").textContent=allDocs.filter(x=>x.data.docType==="Resume").length;$("totalBio").textContent=allDocs.filter(x=>String(x.data.docType||"").toLowerCase().includes("biodata")).length;$("totalOwners").textContent=owners.size;render();note("Admin dashboard loaded. Documents are read-only here.");}
+$("loginBtn").onclick=async()=>{try{await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())}catch(e){note("Login failed: "+e.message,true)}};
+$("logoutBtn").onclick=()=>auth.signOut();
+auth.onAuthStateChanged(async user=>{if(user&&user.email===ADMIN_EMAIL){$("dashboard").classList.remove("hidden");$("loginBtn").classList.add("hidden");$("logoutBtn").classList.remove("hidden");try{await loadAll()}catch(e){note("Could not read database. Check Firebase Rules: "+e.message,true)}}else{$("dashboard").classList.add("hidden");$("loginBtn").classList.remove("hidden");$("logoutBtn").classList.add("hidden");if(user){await auth.signOut();note("Access denied. Only "+ADMIN_EMAIL+" can use this admin page.",true)}else note("Admin sign-in required.");}});
+["searchName","searchEmail","searchMobile","typeFilter"].forEach(id=>$(id).addEventListener("input",render));
+$("results").addEventListener("click",e=>{const key=e.target.dataset.view;if(!key)return;const x=allDocs.find(v=>v.uid+"/"+v.id===key);if(!x)return;$("preview").innerHTML=previewHtml(x.data);$("viewCard").classList.remove("hidden");$("viewCard").scrollIntoView({behavior:"smooth"});});
+$("printBtn").onclick=()=>window.print();$("closeView").onclick=()=>$("viewCard").classList.add("hidden");
+</script></body></html>

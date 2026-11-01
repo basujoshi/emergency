@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BD Resume & Biodata Maker</title>
+<style>
+:root{--blue:#1769e0;--navy:#102a56;--bg:#f3f7ff;--ink:#17243a;--muted:#64748b;--line:#dce5f2}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Arial,sans-serif}
+header{background:linear-gradient(120deg,#0e3b83,#2479ef);color:#fff;padding:22px max(18px,calc((100% - 1100px)/2));display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-size:22px;margin:0}header p{margin:3px 0 0;color:#dbeafe;font-size:13px}
+main{max-width:1100px;margin:22px auto;padding:0 16px}.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:18px;box-shadow:0 8px 28px #163b6b0b}
+h2{font-size:19px;margin:0 0 14px;color:var(--navy)}h3{font-size:16px;margin:16px 0 8px;color:var(--navy)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.field{display:flex;flex-direction:column;gap:5px}.field.full{grid-column:1/-1}label{font-size:13px;font-weight:700;color:#34445c}
+input,textarea,select{width:100%;padding:11px 12px;border:1px solid #cbd7e8;border-radius:9px;font:inherit;background:#fff;color:var(--ink)}textarea{min-height:75px;resize:vertical}
+button,.btn{border:0;border-radius:9px;padding:11px 16px;background:var(--blue);color:#fff;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:7px}
+button.secondary{background:#eaf1fc;color:#17498d}button.danger{background:#fff0f0;color:#b42318}button:disabled{opacity:.5;cursor:not-allowed}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:15px}.muted{color:var(--muted);font-size:13px}.hidden{display:none!important}
+.status{padding:10px 12px;border-radius:9px;background:#eff6ff;color:#17498d;margin:10px 0}.error{background:#fff1f0;color:#b42318}
+.doc{border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.doc strong{display:block}.pill{font-size:11px;background:#eaf1fc;color:#17498d;padding:3px 8px;border-radius:20px}
+.toprow{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.modal{position:fixed;inset:0;background:#071a35aa;display:flex;align-items:center;justify-content:center;padding:18px;z-index:5}.modalbox{background:white;padding:24px;border-radius:16px;max-width:440px;width:100%}
+.preview{background:white;color:#111;padding:28px;max-width:800px;margin:15px auto;border:1px solid #ddd}.preview h1{color:#123e78}.preview h2{border-bottom:1px solid #bbb;padding-bottom:4px;margin-top:18px}.preview p{white-space:pre-wrap;margin:5px 0}
+@media(max-width:650px){.grid{grid-template-columns:1fr}.field.full{grid-column:auto}main{margin:14px auto}.card{padding:15px}header{padding:18px}}
+@media print{body{background:white}.no-print,header,.card:not(.print-card){display:none!important}.print-card{border:0;box-shadow:none;margin:0;padding:0}.preview{border:0;margin:0;max-width:none;padding:0}}
+</style>
+</head>
+<body>
+<header><div><h1>BD Resume & Biodata Maker</h1><p>Create • Save • Edit • Download • Print</p></div><div id="authArea"><button id="loginBtn">Continue with Google</button><button id="logoutBtn" class="secondary hidden">Sign out</button></div></header>
+<main>
+<div id="notice" class="status">Sign in with Google to create and manage your own documents.</div>
+<section id="workspace" class="hidden">
+<div class="card">
+ <div class="toprow"><div><h2>My Documents</h2><div class="muted">Only documents saved in your account are shown here.</div></div><span id="userLabel" class="pill"></span></div>
+ <div class="grid" style="margin-top:14px">
+  <div class="field full"><label for="searchMine">Search by complete name</label><input id="searchMine" placeholder="Type the full name saved in your document"></div>
+ </div>
+ <div id="myDocs"></div>
+</div>
+<div class="card">
+ <h2 id="formTitle">Create a Resume or Biodata</h2>
+ <form id="docForm">
+  <div class="grid">
+   <div class="field"><label>Document type</label><select id="docType"><option value="Resume">Resume</option><option value="Biodata">Biodata</option><option value="Marriage Biodata">Marriage Biodata</option></select></div>
+   <div class="field"><label>Full name *</label><input id="fullName" required placeholder="Enter complete name"></div>
+   <div class="field"><label>Email</label><input id="email" type="email" placeholder="name@example.com"></div>
+   <div class="field"><label>Mobile number</label><input id="mobile" placeholder="Mobile number"></div>
+   <div class="field"><label>Date of birth</label><input id="dob" type="date"></div>
+   <div class="field"><label>Gender</label><input id="gender" placeholder="Gender"></div>
+   <div class="field full"><label>Address</label><textarea id="address" placeholder="Full address"></textarea></div>
+   <div class="field full"><label>Career objective / About me</label><textarea id="objective" placeholder="Write a short introduction"></textarea></div>
+   <div class="field full"><label>Education (one qualification per line)</label><textarea id="education" placeholder="Qualification — Institution — Year — Grade"></textarea></div>
+   <div class="field full"><label>Work experience (one role per line)</label><textarea id="experience" placeholder="Job title — Company — Duration"></textarea></div>
+   <div class="field full"><label>Skills</label><textarea id="skills" placeholder="Communication, Computer, Sales..."></textarea></div>
+   <div class="field full"><label>Languages</label><input id="languages" placeholder="English, Hindi, Nepali..."></div>
+   <div class="field full"><label>Family details (mainly for Biodata)</label><textarea id="family" placeholder="Father, mother, siblings, family details"></textarea></div>
+   <div class="field full"><label>Hobbies / Additional information</label><textarea id="hobbies" placeholder="Hobbies and other details"></textarea></div>
+  </div>
+  <div class="actions"><button type="submit" id="createBtn">Continue</button><button type="button" class="secondary" id="clearBtn">Clear form</button><button type="button" class="danger hidden" id="cancelEditBtn">Cancel edit</button></div>
+  <p class="muted">Permanent Save stores this document in Firebase. Don't Save keeps it only for this session and lets you print or save as PDF.</p>
+ </form>
+</div>
+</section>
+<section id="previewSection" class="card print-card hidden"><div class="toprow no-print"><h2>Document Preview</h2><div class="actions"><button id="printBtn">Print / Save PDF</button><button class="secondary" id="closePreview">Close</button></div></div><div id="previewContent" class="preview"></div></section>
+</main>
+<div id="saveModal" class="modal hidden"><div class="modalbox"><h2>Save your document?</h2><p>Choose whether to permanently save this document in your Firebase account.</p><div class="actions"><button id="permanentBtn">Permanent Save</button><button id="dontSaveBtn" class="secondary">Don't Save</button><button id="modalCancel" class="danger">Cancel</button></div><p class="muted">Don't Save will not upload the document to Firebase.</p></div></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+const firebaseConfig = {
+ apiKey:"AIzaSyC_nzg0OSMo4L38NS9XKpMwh8rNtNu6v4",
+ authDomain:"online-shoping-90c2a.firebaseapp.com",
+ databaseURL:"https://online-shoping-90c2a-default-rtdb.firebaseio.com",
+ projectId:"online-shoping-90c2a",
+ storageBucket:"online-shoping-90c2a.firebasestorage.app",
+ messagingSenderId:"719473683207",
+ appId:"1:719473683207:web:f816a2e564fdc8cb0073a2"
+};
+firebase.initializeApp(firebaseConfig);
+const auth=firebase.auth(), db=firebase.database();
+const $=id=>document.getElementById(id);
+let currentUser=null, editId=null, pendingData=null, ownDocs={};
+const fields=["docType","fullName","email","mobile","dob","gender","address","objective","education","experience","skills","languages","family","hobbies"];
+function note(msg,bad=false){$("notice").textContent=msg;$("notice").className="status"+(bad?" error":"")}
+function readForm(){const d={};fields.forEach(k=>d[k]=$(k).value.trim());d.updatedAt=Date.now();return d}
+function fillForm(d){fields.forEach(k=>$(k).value=d[k]||"");}
+function escapeHtml(s){return String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function previewHtml(d){const section=(title,value)=>value?`<h2>${title}</h2><p>${escapeHtml(value)}</p>`:"";return `<h1>${escapeHtml(d.fullName)}</h1><p><b>${escapeHtml(d.docType)}</b></p><p>${[d.email,d.mobile,d.dob,d.gender,d.address].filter(Boolean).map(escapeHtml).join(" • ")}</p>${section("Career Objective / About Me",d.objective)}${section("Education",d.education)}${section("Work Experience",d.experience)}${section("Skills",d.skills)}${section("Languages",d.languages)}${section("Family Details",d.family)}${section("Hobbies / Additional Information",d.hobbies)}`}
+function showPreview(d){$("previewContent").innerHTML=previewHtml(d);$("previewSection").classList.remove("hidden");$("previewSection").scrollIntoView({behavior:"smooth"});}
+function resetForm(){ $("docForm").reset();editId=null;$("formTitle").textContent="Create a Resume or Biodata";$("createBtn").textContent="Continue";$("cancelEditBtn").classList.add("hidden");}
+async function loadMine(){if(!currentUser)return;const snap=await db.ref("documents/"+currentUser.uid).once("value");ownDocs=snap.val()||{};renderMine($("searchMine").value)}
+function renderMine(q=""){const list=$("myDocs");list.innerHTML="";const term=q.trim().toLowerCase();const rows=Object.entries(ownDocs).filter(([id,d])=>!term||(d.fullName||"").toLowerCase().includes(term));if(!rows.length){list.innerHTML='<p class="muted">No matching saved documents found.</p>';return;}rows.sort((a,b)=>(b[1].updatedAt||0)-(a[1].updatedAt||0));rows.forEach(([id,d])=>{const el=document.createElement("div");el.className="doc";el.innerHTML=`<div><strong>${escapeHtml(d.fullName||"Unnamed")}</strong><span class="pill">${escapeHtml(d.docType||"Document")}</span><div class="muted">${d.updatedAt?new Date(d.updatedAt).toLocaleString():""}</div></div><div class="actions"><button class="secondary" data-open="${id}">Open / Print</button><button data-edit="${id}">Edit</button><button class="danger" data-delete="${id}">Delete</button></div>`;list.appendChild(el)});}
+$("myDocs").addEventListener("click",async e=>{const open=e.target.dataset.open,edit=e.target.dataset.edit,del=e.target.dataset.delete;if(open){showPreview(ownDocs[open]);return;}if(edit){editId=edit;fillForm(ownDocs[edit]);$("formTitle").textContent="Edit Saved Document";$("createBtn").textContent="Update";$("cancelEditBtn").classList.remove("hidden");window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"});return;}if(del&&confirm("Permanently delete this document?")){await db.ref(`documents/${currentUser.uid}/${del}`).remove();await db.ref(`adminDocuments/${currentUser.uid}/${del}`).remove();await loadMine();note("Document deleted.");}});
+$("searchMine").addEventListener("input",e=>renderMine(e.target.value));
+$("docForm").addEventListener("submit",e=>{e.preventDefault();if(!currentUser){note("Please sign in first.",true);return;}const d=readForm();if(!d.fullName){note("Please enter the complete name.",true);return;}pendingData=d;if(editId){saveDocument();}else{$("saveModal").classList.remove("hidden");}});
+async function saveDocument(){try{const ref=editId?db.ref(`documents/${currentUser.uid}/${editId}`):db.ref(`documents/${currentUser.uid}`).push();pendingData.ownerUid=currentUser.uid;pendingData.ownerEmail=currentUser.email;pendingData.createdAt=editId?(ownDocs[editId].createdAt||Date.now()):Date.now();pendingData.updatedAt=Date.now();await ref.set(pendingData);await db.ref(`adminDocuments/${currentUser.uid}/${ref.key}`).set(pendingData);$("saveModal").classList.add("hidden");showPreview(pendingData);resetForm();await loadMine();note("Document saved successfully in Firebase.");}catch(err){note("Save failed: "+err.message,true);}}
+$("permanentBtn").onclick=saveDocument;
+$("dontSaveBtn").onclick=()=>{$("saveModal").classList.add("hidden");showPreview(pendingData);note("Not saved to Firebase. Print or save as PDF now.");resetForm();};
+$("modalCancel").onclick=()=>$("saveModal").classList.add("hidden");
+$("clearBtn").onclick=resetForm;$("cancelEditBtn").onclick=resetForm;
+$("printBtn").onclick=()=>window.print();$("closePreview").onclick=()=>$("previewSection").classList.add("hidden");
+$("loginBtn").onclick=async()=>{try{const provider=new firebase.auth.GoogleAuthProvider();await auth.signInWithPopup(provider)}catch(e){note("Google sign-in failed: "+e.message,true)}};
+$("logoutBtn").onclick=()=>auth.signOut();
+auth.onAuthStateChanged(async user=>{currentUser=user;if(user){$("workspace").classList.remove("hidden");$("loginBtn").classList.add("hidden");$("logoutBtn").classList.remove("hidden");$("userLabel").textContent=user.email; $("email").value=user.email||"";note("Signed in. Your documents are private to your account.");try{await loadMine()}catch(e){note("Could not load documents. Check Realtime Database Rules: "+e.message,true)}}else{$("workspace").classList.add("hidden");$("loginBtn").classList.remove("hidden");$("logoutBtn").classList.add("hidden");$("myDocs").innerHTML="";note("Sign in with Google to create and manage your own documents.");}});
+</script>
+</body></html>
