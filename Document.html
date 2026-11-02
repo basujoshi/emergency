@@ -25,7 +25,7 @@ body:not(.authenticated) #loginBtn{display:none!important}
 <body>
 <header><div class="brand"><div class="logo">BD</div><div><h1>BD Resume & Biodata Studio</h1><p>Professional Resume • CV • Bio-Data • Marriage Bio-Data</p></div></div>
 <div class="head-actions"><select id="language"><option value="en">English</option><option value="ne">नेपाली</option><option value="hi">हिन्दी</option><option value="ta">தமிழ்</option></select><span class="status" id="firebaseStatus">Firebase: checking…</span><button class="btn" id="loginBtn">Continue with Google</button><button class="btn primary hidden" id="logoutBtn">Logout</button></div></header>
-<section class="auth-gate" id="authGate"><div class="gate-logo">BD</div><div class="eyebrow">Secure access</div><h2>Sign in to continue</h2><p>पहले अपने Google Account से Login करें। Login सफल होने के बाद ही Resume और Bio-Data Studio खुलेगा। आपके Documents आपके अपने Account में सुरक्षित रहेंगे।</p><button class="btn primary" id="gateLoginBtn" style="min-width:220px;padding:13px 18px">Continue with Google</button><p id="gateMessage" class="muted">Google Login required</p></section>
+<section class="auth-gate" id="authGate"><div class="gate-logo">BD</div><div class="eyebrow">Secure access</div><h2>Sign in to continue</h2><p>पहले अपने Google Account से Login करें। Login सफल होने के बाद ही Resume और Bio-Data Studio खुलेगा। आपके Documents आपके अपने Account में सुरक्षित रहेंगे।</p><button type="button" class="btn primary" id="gateLoginBtn" style="min-width:220px;padding:13px 18px" onclick="window.bdStartGoogleLogin && window.bdStartGoogleLogin()">Continue with Google</button><p id="gateMessage" class="muted">Google Login required</p></section>
 <main><section class="hero"><div class="eyebrow">Premium document creator</div><h2>Create a profile that makes a strong first impression.</h2><p>Create a standard traditional Bio-Data or a separate job-ready Resume. Enter relevant details, choose a clean design, preview, save privately or download.</p></section>
 <div class="stats"><div class="stat"><b id="statSaved">0</b><span>My saved documents</span></div><div class="stat"><b>4</b><span>Document formats</span></div><div class="stat"><b>5</b><span>Design styles</span></div></div>
 <div class="grid">
@@ -118,20 +118,38 @@ $("mySearch").oninput=drawDocs;
 $("saveBtn").onclick=async()=>{if(!read().name){toast("Please enter your full name first",true);return}if(!user){toast("Please sign in with Google before Permanent Save",true);return}try{let id=currentId||db.ref("documents/"+user.uid).push().key,d={...read(),photo:photoData,type:currentType,template,accent,updatedAt:firebase.database.ServerValue.TIMESTAMP,ownerName:user.displayName||"",ownerEmail:user.email||""};if(!currentId)d.createdAt=firebase.database.ServerValue.TIMESTAMP;let updates={};updates["documents/"+user.uid+"/"+id]=d;updates["adminDocuments/"+user.uid+"/"+id]={name:d.name,email:d.email||"",phone:d.phone||"",type:d.type,updatedAt:firebase.database.ServerValue.TIMESTAMP,ownerName:user.displayName||"",ownerEmail:user.email||""};await db.ref().update(updates);currentId=id;await load();toast("Saved permanently. You can edit it from My Saved Documents.")}catch(e){toast("Save failed: "+e.message,true)}};
 try{if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);auth=firebase.auth();db=firebase.database();db.ref(".info/connected").on("value",s=>{$("firebaseStatus").textContent=s.val()?"Firebase: Connected":"Firebase: Offline"})}catch(e){$("firebaseStatus").textContent="Firebase: Setup error";toast(e.message,true)}
 async function startGoogleLogin(){
- if(!auth){$("gateMessage").textContent="Firebase Authentication initialize nahi hua. Page reload karke dobara try karein.";toast("Firebase Auth is not initialized",true);return}
- const btn=$("gateLoginBtn");btn.disabled=true;btn.textContent="Redirecting to Google…";$("gateMessage").textContent="Google sign-in page khul raha hai. Login ke baad aap wapas yahin aa jayenge.";
+ const btn=$("gateLoginBtn");
+ const msg=$("gateMessage");
+ if(!auth || !firebase.apps.length){
+   msg.textContent="Firebase Authentication load nahi hua. Internet check karke page refresh karein.";
+   toast("Firebase Auth initialize nahi hua",true);return;
+ }
+ btn.disabled=true;btn.textContent="Connecting to Google…";
+ msg.textContent="Google sign-in start ho raha hai…";
  try{
    const provider=new firebase.auth.GoogleAuthProvider();
    provider.setCustomParameters({prompt:"select_account"});
    await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-   await auth.signInWithRedirect(provider);
+   // Popup is attempted first; if the mobile browser blocks it, use redirect.
+   try{
+     const result=await auth.signInWithPopup(provider);
+     if(result && result.user){msg.textContent="Login successful. Studio loading…";}
+   }catch(popErr){
+     if(["auth/popup-blocked","auth/popup-closed-by-user","auth/cancelled-popup-request","auth/web-storage-unsupported"].includes(popErr.code)){
+       msg.textContent="Google page par redirect ho raha hai…";
+       await auth.signInWithRedirect(provider);
+       return;
+     }
+     throw popErr;
+   }
  }catch(e){
-   btn.disabled=false;btn.textContent="Continue with Google";
-   $("gateMessage").textContent=(e.code||"Login error")+" — "+(e.message||"Please try again");
+   msg.textContent=(e.code||"Login error")+" — "+(e.message||"Please try again");
    toast((e.code||"Login error")+" — "+(e.message||""),true);
+   btn.disabled=false;btn.textContent="Continue with Google";
  }
 }
-$("loginBtn").onclick=startGoogleLogin;$("gateLoginBtn").onclick=startGoogleLogin;$("logoutBtn").onclick=()=>auth.signOut();
+window.bdStartGoogleLogin=startGoogleLogin;
+$("loginBtn").addEventListener("click",startGoogleLogin);$("gateLoginBtn").addEventListener("click",startGoogleLogin);$("logoutBtn").onclick=()=>auth.signOut();
 auth?.getRedirectResult().then(result=>{if(result&&result.user){$("gateMessage").textContent="Google Login successful. Loading your studio…";}}).catch(e=>{$("gateMessage").textContent=(e.code||"Google login error")+" — "+(e.message||"");toast("Google Login failed: "+(e.code||e.message),true);});
 auth?.onAuthStateChanged(async u=>{setSigned(u);if(u){try{await load();toast("Signed in successfully")}catch(e){toast("Could not load documents: "+e.message,true)}}else{docs={};$("statSaved").textContent="0";drawDocs()}});
 $("language").onchange=e=>{document.documentElement.lang=e.target.value;localStorage.setItem("bd-studio-language",e.target.value);render()};$("language").value=localStorage.getItem("bd-studio-language")||"en";
